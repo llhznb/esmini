@@ -6857,14 +6857,11 @@ void OpenDrive::SetRoadMarkOSIPoints()
                                         lane->GetId());
                                 }
                             }
-                            x0.clear();
-                            y0.clear();
-                            x1.clear();
-                            y1.clear();
-                            osi_point.clear();
                             // Explicit lines
                             if (lane_roadMark->GetNumberOfRoadMarkExplicit() > 0)
                             {
+                                std::vector<PointStruct> explicit_osi_point;
+                                std::vector<double>      explicit_x0, explicit_y0, explicit_x1, explicit_y1;
                                 lane_roadMarkExplicit = lane_roadMark->GetLaneRoadMarkExplicitByIdx(0);
 
                                 for (int n = 0; n < lane_roadMarkExplicit->GetNumberOfLaneRoadMarkExplicitLines(); n++)
@@ -6878,7 +6875,7 @@ void OpenDrive::SetRoadMarkOSIPoints()
 
                                     // Add the starting point of each lane as osi point
                                     PointStruct p = {s_roadmarkline, pos_pivot.GetX(), pos_pivot.GetY(), pos_pivot.GetZ(), pos_pivot.GetHRoad()};
-                                    osi_point.push_back(p);
+                                    explicit_osi_point.push_back(p);
 
                                     // [XO, YO] = closest position with given (-) tolerance
                                     pos_tmp.SetRoadMarkPos(road->GetId(),
@@ -6889,12 +6886,12 @@ void OpenDrive::SetRoadMarkOSIPoints()
                                                            MAX(0, s_roadmarkline - OSI_TANGENT_LINE_TOLERANCE),
                                                            0,
                                                            j);
-                                    x0.push_back(pos_tmp.GetX());
-                                    y0.push_back(pos_tmp.GetY());
+                                    explicit_x0.push_back(pos_tmp.GetX());
+                                    explicit_y0.push_back(pos_tmp.GetY());
 
                                     // Push real position between the +/- tolerance points
-                                    x0.push_back(pos_pivot.GetX());
-                                    y0.push_back(pos_pivot.GetY());
+                                    explicit_x0.push_back(pos_pivot.GetX());
+                                    explicit_y0.push_back(pos_pivot.GetY());
 
                                     // [XO, YO] = closest position with given (+) tolerance
                                     pos_tmp.SetRoadMarkPos(
@@ -6906,8 +6903,8 @@ void OpenDrive::SetRoadMarkOSIPoints()
                                         MIN(s_roadmarkline + OSI_TANGENT_LINE_TOLERANCE, s_roadmarkline + lane_roadMarkExplicitLine->GetLength()),
                                         0,
                                         j);
-                                    x0.push_back(pos_tmp.GetX());
-                                    y0.push_back(pos_tmp.GetY());
+                                    explicit_x0.push_back(pos_tmp.GetX());
+                                    explicit_y0.push_back(pos_tmp.GetY());
 
                                     bool   insert = false;
                                     double step   = OSI_POINT_CALC_STEPSIZE;
@@ -6925,11 +6922,11 @@ void OpenDrive::SetRoadMarkOSIPoints()
 
                                         // [X1, Y1] = closest position with given (-) tolerance
                                         pos_tmp.SetRoadMarkPos(road->GetId(), lane->GetId(), m, 0, n, MAX(s - OSI_TANGENT_LINE_TOLERANCE, 0), 0, j);
-                                        x1.push_back(pos_tmp.GetX());
-                                        y1.push_back(pos_tmp.GetY());
+                                        explicit_x1.push_back(pos_tmp.GetX());
+                                        explicit_y1.push_back(pos_tmp.GetY());
 
-                                        x1.push_back(pos_candidate.GetX());
-                                        y1.push_back(pos_candidate.GetY());
+                                        explicit_x1.push_back(pos_candidate.GetX());
+                                        explicit_y1.push_back(pos_candidate.GetY());
 
                                         // [X1, Y1] = closest position with given (+) tolerance
                                         pos_tmp.SetRoadMarkPos(
@@ -6941,8 +6938,8 @@ void OpenDrive::SetRoadMarkOSIPoints()
                                             MIN(s + OSI_TANGENT_LINE_TOLERANCE, s_roadmarkline + lane_roadMarkExplicitLine->GetLength()),
                                             0,
                                             j);
-                                        x1.push_back(pos_tmp.GetX());
-                                        y1.push_back(pos_tmp.GetY());
+                                        explicit_x1.push_back(pos_tmp.GetX());
+                                        explicit_y1.push_back(pos_tmp.GetY());
 
                                         // Check OSI Requirement between current given points
                                         if (NEAR_NUMBERS(pos_pivot.GetH(), pos_candidate.GetH()))
@@ -6962,7 +6959,7 @@ void OpenDrive::SetRoadMarkOSIPoints()
                                         }
                                         else
                                         {
-                                            osi_requirement = CheckLaneOSIRequirement(x0, y0, x1, y1);
+                                            osi_requirement = CheckLaneOSIRequirement(explicit_x0, explicit_y0, explicit_x1, explicit_y1);
                                         }
 
                                         // If requirement is satisfied -> look further points
@@ -6993,13 +6990,13 @@ void OpenDrive::SetRoadMarkOSIPoints()
                                                  pos_candidate.GetY(),
                                                  pos_candidate.GetZ(),
                                                  pos_candidate.GetHRoad()};
-                                            osi_point.push_back(p);
+                                            explicit_osi_point.push_back(p);
                                             insert = false;
 
                                             if (pos_candidate.GetS() + SMALL_NUMBER >
                                                 s_roadmarkline + lane_roadMarkExplicitLine->GetLength() - SMALL_NUMBER)
                                             {
-                                                lane_roadMarkExplicitLine->osi_points_.Set(osi_point);
+                                                lane_roadMarkExplicitLine->osi_points_.Set(explicit_osi_point);
                                                 break;
                                             }
 
@@ -7009,8 +7006,8 @@ void OpenDrive::SetRoadMarkOSIPoints()
                                             pos_pivot = pos_candidate;
 
                                             // reuse candidate x-y collectors for pivot position
-                                            x0 = x1;
-                                            y0 = y1;
+                                            explicit_x0 = explicit_x1;
+                                            explicit_y0 = explicit_y1;
                                         }
                                         else
                                         {
@@ -7025,16 +7022,15 @@ void OpenDrive::SetRoadMarkOSIPoints()
                                             }
                                         }
                                         // Set all collected osi points for the current lane rpadmarkline
-                                        lane_roadMarkExplicitLine->osi_points_.Set(osi_point);
+                                        lane_roadMarkExplicitLine->osi_points_.Set(explicit_osi_point);
                                         // Clear x-y collectors for next iteration
-                                        x1.clear();
-                                        y1.clear();
+                                        explicit_x1.clear();
+                                        explicit_y1.clear();
                                     }
-                                    x0.clear();
-                                    y0.clear();
-                                    x1.clear();
-                                    y1.clear();
-                                    osi_point.clear();
+                                    explicit_x0.clear();
+                                    explicit_y0.clear();
+
+                                    explicit_osi_point.clear();
                                 }
                             }
                         }
